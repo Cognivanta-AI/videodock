@@ -27,11 +27,13 @@ Nota de ambiente: vídeo e clipe-controle inicialmente ficaram em readyState0 qu
 
 ## Testes de implementação
 
-`npm run check`, `npm run build`, `python3 scripts/validate_catalog.py --public-dir dist` e `git diff --check` passaram. Os4testes TypeScript e25testes Python passaram, incluindo regressões para formatos de data, limites de duração/fps e46mutações inválidas de caminhos comparadas com o parser real do frontend. A suíte Python exercitou FFmpeg real, duplicação, colisões, rollback, locks e commit/push com leitura de SHA em remoto bare local descartável.
+`npm run check`, `npm run build`, `python3 scripts/validate_catalog.py --public-dir dist` e `git diff --check` passaram. Os4testes TypeScript e27testes Python passaram, incluindo regressões para formatos de data, limites de duração/fps e46mutações inválidas de caminhos comparadas com o parser real do frontend, além de build sem FFmpeg no runner. A suíte Python exercitou FFmpeg real, duplicação, colisões, rollback, locks e commit/push com leitura de SHA em remoto bare local descartável.
 
 Também foi executado o publicador em um repositório temporário contendo o React real, seus arquivos públicos e dependências: adicionou uma publicação em canal de QA com `--no-push`, executou check/build reais, preservou a entrada anterior e produziu um JSON aceito pelo parser do frontend. Essa árvore temporária foi removida; nenhum canal ou vídeo de QA entrou no catálogo de produção.
 
 O build final contém1canal/1vídeo, status `review`, e o MP4 de4.665.950bytes com hash igual ao original.
+
+Nos runners GitHub sem FFmpeg/FFprobe, a validação de build verifica os átomos MP4 `ftyp/moov/mdat` e enquadramento JPEG, mas não decodifica os codecs nem revalida duração/resolução/fps. O publicador local exige FFmpeg/FFprobe e faz verificação completa de streams e miniatura antes de aceitar um novo arquivo.
 
 ## Limites e configuração remota
 

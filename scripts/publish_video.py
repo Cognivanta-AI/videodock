@@ -35,6 +35,7 @@ def digest(path):
 
 @contextmanager
 def prepared_media(args):
+    require(shutil.which('ffprobe') is not None and shutil.which('ffmpeg') is not None, 'publishing requires FFmpeg and FFprobe; install them before uploading media')
     require(args.file.is_file(), 'source file does not exist')
     if not args.optimize:
         require(0 < args.file.stat().st_size <= MAX_VIDEO_BYTES, 'source exceeds 50 MiB; use --optimize')
