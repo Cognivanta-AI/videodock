@@ -5,9 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && python3 scripts/validate_catalog.py && vite build",
     "preview": "vite preview",
-    "check": "tsc -b"
+    "check": "tsc -b && python3 scripts/validate_catalog.py",
+    "test": "node --experimental-strip-types --test tests/*.test.ts && python3 -m unittest discover -s tests -p 'test_*.py'"
   },
   "dependencies": {
     "lucide-react": "^0.468.0",

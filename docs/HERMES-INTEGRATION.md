@@ -1,88 +1,83 @@
-# Hermes Agent integration — proposed contract (not implemented)
+# Hermes → VideoDock: publicação estática
 
-## Goal
+Este fluxo substitui a antiga proposta de backend privado. **Nenhum endpoint de upload, banco ou autenticação faz parte desta versão.** Git e arquivos estáticos são o mecanismo de publicação.
 
-Hermes should be able to publish video outputs from any channel into VideoDock without SCP or Git commits containing large media. VideoDock separates channels from videos and supports browser playback/review.
+## Contrato do catálogo
 
-## Architecture
+`public/data/videos.json`:
 
-```text
-Hermes (render complete)
-  -> POST /api/v1/videos/upload-intents  [agent token, metadata]
-  -> PUT upload_url                  [presigned HTTPS upload to private S3/R2/MinIO]
-  -> POST /api/v1/videos/{id}/complete
-  -> GET /api/v1/videos               [authenticated dashboard]
-  -> GET /api/v1/videos/{id}/playback [short-lived signed playback URL]
-```
-
-The static UI on GitHub Pages **cannot accept uploads or securely hold API credentials**. Build the ingestion/authentication backend separately (e.g. deployed via Coolify), and keep media in a private object-storage bucket. Access controls must apply to API data as well as media URLs. Configure API CORS to the actual approved frontend origins only.
-
-## Data model
-
-- `Channel`: `id`, `slug`, `name`, `created_at`
-- `Video`: `id`, `channel_id`, `title`, `status`, `created_at`, `updated_at`, `duration_seconds`, `object_key`, `thumbnail_key`, `generation_cost_usd`, `source_agent`
-- Status values: `rendering`, `review`, `approved`, `rejected`, `published`, `failed`
-
-## Suggested API
-
-### POST /api/v1/videos/upload-intents
-
-Authenticated by a dedicated, revocable Hermes machine token (never expose in frontend).
-
-Request:
 ```json
 {
-  "channel_slug": "curious-ancestors",
-  "title": "How Humans Survived Before Fire",
-  "filename": "final.mp4",
-  "content_type": "video/mp4",
-  "size_bytes": 150000000,
-  "sha256": "<hex sha256>"
+  "channels": [{"id":"curious-ancestors","name":"Curious Ancestors"}],
+  "videos": [{
+    "id":"curious-ancestors-the-noise-outside",
+    "channel_id":"curious-ancestors",
+    "title":"The Noise Outside",
+    "description":"A fictional prehistoric suspense micro-story with an ironic ending.",
+    "status":"review",
+    "duration_seconds":30,
+    "resolution":"1280x720",
+    "fps":30,
+    "video_path":"videos/curious-ancestors/the-noise-outside/preview.mp4",
+    "thumbnail_path":"videos/curious-ancestors/the-noise-outside/thumbnail.jpg",
+    "generator":"FLUX.1 Schnell",
+    "style":"A3 Prehistoric Cave",
+    "created_at":"2026-11-04"
+  }]
 }
 ```
 
-Response (201):
-```json
-{
-  "id": "video-uuid",
-  "upload_url": "https://private-object-store.example/signed-upload",
-  "upload_headers": {"Content-Type":"video/mp4"},
-  "expires_at": "2026-11-04T05:30:00Z"
-}
+IDs são slugs seguros e únicos; caminhos nunca são absolutos, URLs externas ou contêm travessia. `channel_id` precisa corresponder a um canal existente. `created_at` aceita data ISO real ou timestamp ISO com fuso; duração e fps devem ser finitos e positivos. O publicador inclui tamanho/hash para rastreabilidade. Todos os canais do frontend vêm deste JSON: não requer mudanças React para adicionar canais.
+
+Status: `review`, `rendering`, `approved`, `rejected`, `published`, `failed`. Novo registro usa `review`; `approved` exige decisão editorial humana explícita. Publicação do arquivo não altera aprovação.
+
+## Uso operacional
+
+1. Trabalhar no clone canônico `/home/sysadmin/workspace/videodock` com git limpo e atualizado.
+2. Confirmar que a exposição pública do conteúdo está autorizada. Não colocar segredos no catálogo ou em variáveis Vite.
+3. Validar o MP4 original e sua permissão de divulgação. O script nunca altera a produção-fonte.
+4. Publicar com o wrapper:
+
+```bash
+./scripts/publish-video.sh \
+  --channel curious-ancestors \
+  --channel-name "Curious Ancestors" \
+  --title "Título do próximo vídeo" \
+  --file "/caminho/da/producao/preview.mp4" \
+  --status review
 ```
 
-### POST /api/v1/videos/{id}/complete
+Use `--help` para os demais metadados e modo de preparação sem push. O fluxo padrão prepara os arquivos, gera JPEG com FFmpeg, valida o catálogo, executa `npm run check` e `npm run build`, cria um commit com os arquivos da publicação e envia ao GitHub. Não misturar alterações de implementação no mesmo disparo do publicador: finalize essas alterações antes.
 
-Verify object existence, expected length/hash if supported, then make the record visible in the dashboard. Reject unknown objects or unmatched channel IDs.
+É recusado reutilizar o mesmo arquivo no mesmo canal. Colisões de título recebem um identificador distinto em vez de sobrescrever o vídeo anterior. Se o build falhar antes do commit, os arquivos novos e a atualização do catálogo são desfeitos. Uma falha de push não deve apagar um commit já criado: resolver acesso/rede e reenviar o commit existente, sem produzir outra cópia do vídeo.
 
-### GET /api/v1/channels / GET /api/v1/videos?channel_id=...
+`--optimize` recodifica apenas a cópia de publicação usando FFmpeg; avaliar qualidade e tamanho. Se ainda ultrapassar o teto prático, parar e propor armazenamento externo. Não usar LFS, remover o original ou resetar o histórico para contornar limites.
 
-Requires dashboard session. Return paginated records; never return permanent public bucket URLs.
+## Frontend
 
-### GET /api/v1/videos/{id}/playback
+A aplicação busca o JSON com a base Vite e apresenta estados de carregamento, catálogo inválido, falha com nova tentativa e filtros sem resultados. O modal preserva o layout existente e usa `<video controls playsInline>` com poster, metadados, erro e link direto ao MP4. A reprodução não faz chamadas ao YouTube.
 
-Requires dashboard session. Returns short-lived read-only signed URL; renew on expiry.
+Links de vídeo usam fragmentos, compatíveis com Pages sem roteamento no servidor:
 
-### PATCH /api/v1/videos/{id}/status
+`/videodock/#video=curious-ancestors-the-noise-outside`
 
-Requires dashboard session with review permission. Prevent machine uploader from approving on behalf of a human reviewer.
+O modal fecha com botão, fundo ou Escape, controla foco e pausa ao desmontar. Controles nativos permitem tocar, pausar e buscar para frente/trás. Nenhum dado de aprovação é escrito pelo navegador.
 
-## Operational requirements
+## Deploy e verificação remota
 
-1. Limit uploads by MIME/content inspection, byte size, quota, authenticated agent identity and per-channel scope.
-2. Sanitize metadata and validate channel slugs (avoid path traversal and cross-channel access).
-3. Rate-limit and log uploads; prefer resumable/multipart uploads for large MP4s.
-4. Store secrets only as backend environment variables. Never commit keys or set `VITE_*` secrets.
-5. Do not delete a local render until upload completion was verified.
-6. Prefer idempotency keys and checksums so agent retries cannot duplicate videos.
-7. Serve MP4 with byte-range support for seeking; private CORS and signed links must support browser playback.
-8. Keep `review` distinct from `approved`; no automatic approval from Hermes.
+GitHub Actions publica `dist/` inteiro, incluindo catálogo e mídia, sob `/videodock/`. Conferir:
 
-## Future rollout
+- check, testes, build e validação do artefato aprovados;
+- SHA remoto corresponde ao commit enviado;
+- deploy concluído, não apenas build;
+- HTML, JSON, JPEG e MP4 acessíveis na URL publicada;
+- Range HTTP funciona para buscar o MP4;
+- browser toca, pausa, avança e retrocede; celular não tem overflow;
+- catálogo remoto mantém `status: review` para a primeira prévia;
+- hash do MP4 original de produção permanece igual.
 
-1. Implement private auth + backend + object store.
-2. Wire the React UI to API endpoints, loading/error states and playback URLs.
-3. Add upload jobs on Hermes and channel mapping.
-4. Add human approval, comments, version history and retention rules.
+No plano Free da organização, Pages exige repositório público. O agente recebeu autorização para torná-lo público, mas o App atual recusou a operação administrativa com403. Se isso continuar, o proprietário deve alterar a visibilidade em General e escolher GitHub Actions em Pages, depois repetir o workflow. Nunca declarar um link publicado sem resposta remota confirmada.
 
-The present repository only supplies the static demo and this handoff document; these endpoints are **not live**.
+## Limites
+
+Política local:50MiB por MP4 e900MiB em `public/`. GitHub: aviso50MiB/bloqueio100MiB, Pages publicado1GB e banda flexível100GB/mês. Consultar novamente a documentação antes de aumentar a biblioteca. Git retém os binários de versões antigas. Segredos e mídia sensível devem ficar fora deste site estático público.

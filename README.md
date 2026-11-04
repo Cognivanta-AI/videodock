@@ -1,47 +1,87 @@
 # VideoDock
 
-**Private, multi-channel video review workspace for AI-assisted production.**
+Painel estático multicanal para visualizar e revisar vídeos de produção. React + TypeScript + Vite, mantendo a interface compacta original: canais, busca, indicadores, miniaturas, status e player modal.
 
-VideoDock is a lightweight dashboard for reviewing videos produced by agents such as Hermes. Organize productions by channel, inspect thumbnails and metadata, play MP4s in your browser, and track review status without downloading files over SCP.
+**Esta versão não tem backend, banco, autenticação ou API de upload.** O GitHub armazena o catálogo e os arquivos públicos. Publicar no VideoDock não significa aprovar o vídeo nem publicá-lo no YouTube.
 
-## Status
+## Primeiro vídeo
 
-Initial UI foundation (static demo). The interface is ready for GitHub Pages deployment after Pages is configured; **video ingestion, authentication, approvals and storage are not implemented yet**. Demo entries are clearly identified as sample data.
+- **The Noise Outside** — Curious Ancestors; micro-história ficcional pré-histórica.
+- **Em revisão** (`review`), 30 segundos, 1280×720, 30 fps.
+- MP4: **4.665.950 bytes**, copiado sem recodificação e com SHA-256 idêntico ao original.
+- Miniatura: JPEG 640×360 extraído do vídeo com FFmpeg, 66.769 bytes.
+- Original de produção preservado em `/home/sysadmin/workspace/curious-ancestors-productions/test01-flux-30s/output/preview.mp4`.
 
-## Stack
+## Desenvolvimento e validação
 
-- React + TypeScript + Vite
-- Responsive, compact dashboard with per-channel filters, status and video playback
-- GitHub Actions workflow to publish static assets to GitHub Pages
-- External secure video storage anticipated (S3/R2/MinIO), not Git/GitHub Pages
-
-## Quick start
+Requisitos: Node22+, npm, Python3.11+, FFmpeg e FFprobe. Sem dependências Python externas.
 
 ```bash
-npm install
-npm run dev
+npm ci
+npm run check
+npm test
 npm run build
+npm run dev
 ```
+
+`npm run check` valida TypeScript, catálogo e mídia. O build inclui `public/data/videos.json`, os MP4s e as miniaturas em `dist/`. O site usa `import.meta.env.BASE_URL`, configurado como `/videodock/`; não há origem absoluta fixa no player.
+
+```text
+public/
+  data/videos.json
+  videos/curious-ancestors/the-noise-outside/
+    preview.mp4
+    thumbnail.jpg
+src/
+scripts/
+tests/
+AGENTS.md
+```
+
+## Publicar próximos vídeos
+
+No clone de trabalho, com git limpo, credencial GitHub e identidade de commit já configuradas:
+
+```bash
+./scripts/publish-video.sh \
+  --channel curious-ancestors \
+  --title "Título do próximo vídeo" \
+  --file "/caminho/da/producao/preview.mp4" \
+  --status review
+```
+
+O publicador cria uma pasta segura e única, copia o MP4 sem alterar a fonte, extrai uma miniatura, acrescenta o registro sem apagar os anteriores, valida, executa check/build e faz commit/push. Arquivos iguais no mesmo canal e sobrescritas acidentais são rejeitados. `--optimize` permite preparar uma cópia H.264/AAC otimizada; não é necessário para o primeiro vídeo. Use `--channel-name` para dar nome legível a um canal novo. Consulte [o fluxo completo](docs/HERMES-INTEGRATION.md) e `./scripts/publish-video.sh --help`.
+
+O status padrão é `review`. Não há botão nem automação de aprovação. A decisão editorial permanece com o proprietário.
 
 ## GitHub Pages
 
-The project is configured with base path `/videodock/`. In **Settings > Pages > Build and deployment**, select **GitHub Actions**. Pushes to `main` should trigger the deployment workflow.
+Workflow: `.github/workflows/deploy-pages.yml`; dispara em push para `main` ou manualmente. Faz instalação reproduzível, check, testes, build, validação de `dist` e publicação via Actions Pages.
 
-> **Privacy warning:** GitHub Pages is not a private-video platform. Do not store private MP4 files, signing keys, access tokens or confidential production metadata in this repository or the static `public/` directory. Public Pages URLs must not be treated as authenticated.
+Configuração do proprietário:
 
-## Hermes integration
+1. Em **Settings → General → Danger Zone → Change repository visibility**, tornar **Public** se a organização estiver no plano Free.
+2. Em **Settings → Pages → Build and deployment → Source**, selecionar **GitHub Actions**.
+3. Executar novamente o workflow se necessário.
 
-The desired workflow is `Hermes -> authenticated ingestion API -> private object storage + database -> VideoDock`.
+Endereços esperados **após um deploy bem-sucedido**:
 
-The ingestion API is **not implemented in this repository**. See [docs/HERMES-INTEGRATION.md](docs/HERMES-INTEGRATION.md) for a proposed versioned API contract and security requirements. A future backend can be deployed on Coolify without modifying the static page build.
+- Painel: https://cognivanta-ai.github.io/videodock/
+- Vídeo aberto no modal: https://cognivanta-ai.github.io/videodock/#video=curious-ancestors-the-noise-outside
+- MP4: https://cognivanta-ai.github.io/videodock/videos/curious-ancestors/the-noise-outside/preview.mp4
 
-## Repository structure
+A credencial GitHub App do agente não possui permissão administrativa para mudar a visibilidade (`403 Resource not accessible by integration` na verificação inicial). A existência do workflow ou um build aprovado não comprova que Pages está habilitado. O resultado real do deploy deve ser conferido no Actions e nas URLs.
 
-- `src/`: UI and demo data
-- `docs/HERMES-INTEGRATION.md`: future upload/metadata/approval contract
-- `.github/workflows/deploy-pages.yml`: Pages deployment
-- `public/`: only public, non-sensitive static frontend assets
+## Publicidade, limites e escala
 
-## Guiding principles
+**Os arquivos do site podem ser públicos mesmo se a origem for privada em um plano compatível.** O proprietário autorizou a exposição deste repositório e seus arquivos; não publicar segredos nem mídia confidencial. `.env`, tokens e chaves não entram no build. Não usar Git LFS para mídia servida pelo Pages.
 
-One workspace, many channels; explicit review states; readable desktop/mobile design; no upload via GitHub commits; do not pretend demo videos are real.
+Limites consultados na documentação oficial:
+
+- Git: aviso acima de50MiB por arquivo; bloqueio acima de100MiB.
+- Pages: site publicado no máximo1GB; repositório-fonte recomendado até1GB; banda mensal com limite flexível de100GB; deploy com timeout de10minutos. Builds pelo workflow customizado não estão sujeitos ao limite flexível de10builds/hora.
+- Política conservadora deste projeto: MP4 até50MiB e diretório público até900MiB, preservando margem. O histórico Git continua crescendo mesmo ao excluir vídeos.
+
+Para vídeos longos ou bibliotecas maiores, migrar os binários para armazenamento externo e manter o catálogo estático; não forçar commits grandes nem implantar um backend sem nova autorização.
+
+Fontes: [arquivos grandes](https://docs.github.com/en/repositories/working-with-files/managing-large-files/about-large-files-on-github), [limites Pages](https://docs.github.com/en/pages/getting-started-with-github-pages/github-pages-limits), [planos e disponibilidade](https://docs.github.com/en/pages/getting-started-with-github-pages/about-github-pages).

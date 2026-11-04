@@ -1,0 +1,24 @@
+{
+  "channels": [
+    { "id": "curious-ancestors", "name": "Curious Ancestors" }
+  ],
+  "videos": [
+    {
+      "id": "curious-ancestors-the-noise-outside",
+      "channel_id": "curious-ancestors",
+      "title": "The Noise Outside",
+      "description": "A fictional prehistoric suspense micro-story with an ironic ending.",
+      "status": "review",
+      "duration_seconds": 30,
+      "resolution": "1280x720",
+      "fps": 30,
+      "video_path": "videos/curious-ancestors/the-noise-outside/preview.mp4",
+      "thumbnail_path": "videos/curious-ancestors/the-noise-outside/thumbnail.jpg",
+      "generator": "FLUX.1 Schnell",
+      "style": "A3 Prehistoric Cave",
+      "created_at": "2026-11-04",
+      "size_bytes": 4665950,
+      "sha256": "f9e2a14018462e44b800ee4816ab4b48f2674a562bcf2f68e2ee9606e16f23dc"
+    }
+  ]
+}
